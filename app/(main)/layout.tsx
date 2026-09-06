@@ -1,5 +1,6 @@
 import Sidebar from "../../components/layout/Sidebar";
 import Header from "../../components/layout/Header";
+import AuthGuard from "../../components/auth/AuthGuard";
 
 export default function MainLayout({
   children,
@@ -7,16 +8,18 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen">
-      <Sidebar />
+    <AuthGuard>
+      <div className="min-h-screen">
+        <Sidebar />
 
-      <div className="ml-64">
-        <Header />
+        <div className="ml-64">
+          <Header />
 
-        <main className="p-6">
-          {children}
-        </main>
+          <main className="p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }
