@@ -1,108 +1,198 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase"; 
+
 export default function DashboardPage() {
-  return (
-    // Menggunakan bg-slate-50 agar SAMA PERSIS dengan warna latar sidebar
-    <div className="min-h-screen bg-slate-50 transition-colors duration-300">
+  const [sensorData, setSensorData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fungsi helper untuk memformat angka desimal
+  const formatNumber = (num: any, decimals = 1) => {
+    if (num === undefined || num === null) return "0.0";
+    return Number(num).toFixed(decimals);
+  };
+
+  // Fungsi untuk mengambil data (manual update)
+  const fetchSensorData = async () => {
+    setLoading(true);
+    try {
+      const docRef = doc(db, "latest", "PM01");
+      const docSnap = await getDoc(docRef);
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      if (docSnap.exists()) {
+        setSensorData(docSnap.data());
+      } else {
+        console.warn("Dokumen PM01 tidak ditemukan.");
+      }
+    } catch (error) {
+      console.error("Gagal mengambil data dari Firestore:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Pengecekan status ESP32 (Aktif jika update terakhir < 1 menit)
+  const checkEspStatus = () => {
+    if (!sensorData?.timestamp) return false;
+    
+    let dataTimeMs = 0;
+    if (sensorData.timestamp.toMillis) {
+      dataTimeMs = sensorData.timestamp.toMillis();
+    } else {
+      dataTimeMs = new Date(sensorData.timestamp).getTime();
+    }
+      
+    const nowMs = new Date().getTime();
+    const diff = nowMs - dataTimeMs;
+    
+    return diff <= 60000; 
+  };
+
+  // Pengecekan status Mesin (Off jika tegangan < 50V DAN arus < 0.5A)
+  const checkMachineStatus = () => {
+    if (!sensorData) return false;
+    
+    const voltage = Number(sensorData.Uab) || 0;
+    const current = Number(sensorData.Ia) || 0;
+    
+    if (voltage < 50 && current < 0.5) {
+      return false; 
+    }
+    return true; 
+  };
+
+  const isEspActive = checkEspStatus();
+  const isMachineOn = checkMachineStatus();
+
+  useEffect(() => {
+    fetchSensorData();
+  }, []);
+
+  return (
+    <div className="min-h-screen w-full flex-1 bg-slate-50 transition-all duration-300 relative">
+      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-8">
         
         {/* Header Sambutan */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">Ikhtisar Energi 3 Phase</h2>
-          <p className="text-slate-500 mt-1">
-            Pantau total penggunaan listrik serta daya, tegangan, dan arus per fasa (R, S, T) secara real-time.
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Monitoring 3 Phase</h2>
+            <p className="text-slate-500 mt-2 text-sm md:text-base">
+              Pantau akumulasi kWh, konsumsi harian, serta arus dan tegangan tiap fasa secara real-time.
+            </p>
+          </div>
         </div>
 
         {/* Grid Kartu Indikator */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8 mb-8">
           
           {/* Kartu 1: Total Energi */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Total Energi (Hari Ini)</p>
-                <h3 className="text-3xl font-bold text-slate-900 mt-2">43.5 <span className="text-lg text-slate-400">kWh</span></h3>
-              </div>
-              <div className="p-3 bg-sky-50 rounded-xl">
-                <span className="text-sky-500 text-xl">⚡</span>
+          <div className="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Total KWH Meter</p>
+              <div className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-500 rounded-xl text-lg">
+                ⚡
               </div>
             </div>
-            <div className="mt-4 flex items-center text-sm">
-              <span className="text-blue-600 font-medium flex items-center gap-1">↑ 2.1%</span>
-              <span className="text-slate-400 ml-2">dari kemarin</span>
+            <div>
+              <h3 className="text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? "..." : formatNumber(sensorData?.energyKWh)} <span className="text-xl font-bold text-slate-400">kWh</span>
+              </h3>
             </div>
+            <p className="text-xs font-medium text-slate-400 mt-6">Akumulasi sejak awal pemasangan</p>
           </div>
 
-          {/* Kartu 2: Total Daya Aktif */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Total Daya Aktif</p>
-                <h3 className="text-3xl font-bold text-slate-900 mt-2">3,720 <span className="text-lg text-slate-400">W</span></h3>
-              </div>
-              <div className="p-3 bg-indigo-50 rounded-xl">
-                <span className="text-indigo-500 text-xl">💡</span>
+          {/* Kartu 2: Konsumsi Harian */}
+          <div className="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Energi Hari Ini (Wh)</p>
+              <div className="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-500 rounded-xl text-lg">
+                📈
               </div>
             </div>
-            <div className="mt-4 flex flex-col gap-1 text-xs">
-              <div className="flex justify-between text-slate-500">
-                <span>Phase R: <span className="font-semibold text-slate-700">1,240 W</span></span>
-                <span>Phase S: <span className="font-semibold text-slate-700">1,230 W</span></span>
-                <span>Phase T: <span className="font-semibold text-slate-700">1,250 W</span></span>
-              </div>
+            <div>
+              <h3 className="text-4xl font-black text-slate-900 tracking-tight">
+                {loading ? "..." : formatNumber(sensorData?.energyWh, 4)} <span className="text-xl font-bold text-slate-400">Wh</span>
+              </h3>
             </div>
+            <p className="text-xs font-medium text-slate-400 mt-6">Berdasarkan siklus 24 jam</p>
           </div>
 
-          {/* Kartu 3: Tegangan 3 Phase */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Tegangan (V-N)</p>
-              </div>
-              <div className="p-2.5 bg-purple-50 rounded-xl">
-                <span className="text-purple-500 text-lg">🔌</span>
+          {/* Kartu 3: Tegangan (Line-to-Line) */}
+          <div className="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="flex justify-between items-start mb-6">
+              <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Tegangan</p>
+              <div className="w-10 h-10 flex items-center justify-center bg-purple-50 text-purple-500 rounded-xl text-lg">
+                🔌
               </div>
             </div>
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-                <span className="text-sm font-bold text-rose-500">Phase R</span>
-                <span className="font-bold text-slate-900">221 <span className="text-xs text-slate-400 font-medium">V</span></span>
+            <div className="flex-1 flex flex-col justify-center space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase R-S</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Uab)} <span className="text-xs text-slate-400">v</span>
+                </span>
               </div>
-              <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-                <span className="text-sm font-bold text-amber-500">Phase S</span>
-                <span className="font-bold text-slate-900">220 <span className="text-xs text-slate-400 font-medium">V</span></span>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase S-T</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Ubc)} <span className="text-xs text-slate-400">v</span>
+                </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-700">Phase T</span>
-                <span className="font-bold text-slate-900">222 <span className="text-xs text-slate-400 font-medium">V</span></span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-slate-800"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase T-R</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Uca)} <span className="text-xs text-slate-400">v</span>
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Kartu 4: Arus 3 Phase */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between transition-all hover:shadow-md">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Arus (Ampere)</p>
-              </div>
-              <div className="p-2.5 bg-blue-50 rounded-xl">
-                <span className="text-blue-500 text-lg">🔋</span>
+          {/* Kartu 4: Arus */}
+          <div className="bg-white p-6 rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="flex justify-between items-start mb-6">
+              <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Arus (Ampere)</p>
+              <div className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-500 rounded-xl text-lg">
+                🔋
               </div>
             </div>
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-                <span className="text-sm font-bold text-rose-500">Phase R</span>
-                <span className="font-bold text-slate-900">5.6 <span className="text-xs text-slate-400 font-medium">A</span></span>
+            <div className="flex-1 flex flex-col justify-center space-y-4">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase R</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Ia)} <span className="text-xs text-slate-400">A</span>
+                </span>
               </div>
-              <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-                <span className="text-sm font-bold text-amber-500">Phase S</span>
-                <span className="font-bold text-slate-900">5.4 <span className="text-xs text-slate-400 font-medium">A</span></span>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase S</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Ib)} <span className="text-xs text-slate-400">A</span>
+                </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-700">Phase T</span>
-                <span className="font-bold text-slate-900">5.8 <span className="text-xs text-slate-400 font-medium">A</span></span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-slate-800"></span>
+                  <span className="text-sm font-bold text-slate-700">Phase T</span>
+                </div>
+                <span className="font-bold text-slate-900 text-sm">
+                  {loading ? "..." : formatNumber(sensorData?.Ic)} <span className="text-xs text-slate-400">A</span>
+                </span>
               </div>
             </div>
           </div>
@@ -110,65 +200,76 @@ export default function DashboardPage() {
         </div>
 
         {/* Bagian Grafik & Status */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-8">
           
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-slate-900">Grafik Konsumsi Daya (3 Phase)</h3>
-              <select className="bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-1 text-sm outline-none focus:border-blue-500">
-                <option>Hari Ini</option>
-                <option>Minggu Ini</option>
-                <option>Bulan Ini</option>
-              </select>
+          <div className="xl:col-span-2 bg-white p-7 rounded-2xl shadow-sm border border-slate-100/60 transition-all hover:shadow-md">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Riwayat Konsumsi Energi Harian</h3>
+                <p className="text-sm text-slate-500 mt-1">Pemantauan tren penggunaan listrik dalam rentang waktu tertentu.</p>
+              </div>
             </div>
             
-            <div className="w-full h-64 bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-center relative">
-              {/* Dummy Legend untuk 3 Phase */}
-              <div className="absolute top-4 right-4 flex gap-3 text-xs font-medium text-slate-500">
-                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500"></span> Phase R</div>
-                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Phase S</div>
-                <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-700"></span> Phase T</div>
+            <div className="w-full h-80 bg-slate-50/50 rounded-xl border border-dashed border-slate-300 flex items-center justify-center relative">
+              <div className="flex flex-col items-center gap-3 text-slate-400">
+                <span className="text-sm font-medium">Grafik akan dimuat di sini</span>
               </div>
-              <p className="text-slate-400 text-sm font-medium flex flex-col items-center gap-2">
-                <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
-                </svg>
-                Area Chart 3 Lines / Grafik Recharts
-              </p>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-lg font-bold text-slate-900 mb-6">Status Perangkat Utama</h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
-                  <span className="font-medium text-slate-700">Power Meter 3 Phase</span>
-                </div>
-                <span className="text-xs font-semibold px-2 py-1 bg-blue-100 text-blue-700 rounded-md">Online</span>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
-                  <span className="font-medium text-slate-700">CT Sensor Panel Utama</span>
-                </div>
-                <span className="text-xs font-semibold px-2 py-1 bg-blue-100 text-blue-700 rounded-md">Online</span>
-              </div>
-
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)] animate-pulse"></div>
-                  <span className="font-medium text-slate-700">Koneksi Modbus</span>
-                </div>
-                <span className="text-xs font-semibold px-2 py-1 bg-rose-100 text-rose-700 rounded-md">Offline</span>
-              </div>
+          <div className="bg-white p-7 rounded-2xl shadow-sm border border-slate-100/60 flex flex-col transition-all hover:shadow-md">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Status Perangkat & Database</h3>
+              <p className="text-sm text-slate-500 mt-1 mb-6">Konektivitas sistem manual update.</p>
             </div>
             
-            <button className="w-full mt-6 py-2.5 bg-blue-50 text-blue-600 font-medium rounded-xl hover:bg-blue-100 transition-colors text-sm border border-blue-100">
-              Lihat Detail Perangkat
+            <div className="space-y-4 flex-1">
+              
+              {/* Status ESP32 */}
+              <div className="flex items-center justify-between p-4.5 bg-slate-50 rounded-xl border border-slate-100/80">
+                <div className="flex items-center gap-3.5">
+                  <div className={`relative flex h-3 w-3`}>
+                    {isEspActive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+                    <span className={`relative inline-flex rounded-full h-3 w-3 ${isEspActive ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                  </div>
+                  <span className="font-semibold text-slate-700">Node ESP32</span>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm ${isEspActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                  {isEspActive ? "Online" : "Offline"}
+                </span>
+              </div>
+
+              {/* Tipe Power Meter */}
+              <div className="flex items-center justify-between p-4.5 bg-slate-50 rounded-xl border border-slate-100/80">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                  <span className="font-semibold text-slate-700">Tipe Power Meter</span>
+                </div>
+                <span className="text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm bg-blue-100 text-blue-700">
+                  ER200
+                </span>
+              </div>
+
+              {/* Status Mesin */}
+              <div className="flex items-center justify-between p-4.5 bg-slate-50 rounded-xl border border-slate-100/80">
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-3 h-3 rounded-full ${isMachineOn ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-slate-400"}`}></div>
+                  <span className="font-semibold text-slate-700">Status Mesin</span>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm ${isMachineOn ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                  {isMachineOn ? "Aktif" : "Off"}
+                </span>
+              </div>
+
+            </div>
+            
+            {/* Tombol Update Manual */}
+            <button 
+              onClick={fetchSensorData}
+              disabled={loading}
+              className="w-full mt-8 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-md hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 text-sm cursor-pointer"
+            >
+              {loading ? "Mengambil Data..." : "Perbarui Data Sekarang"}
             </button>
           </div>
 

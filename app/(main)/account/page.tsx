@@ -457,7 +457,7 @@ export default function AccountManagementPage() {
                     resetForm();
                   }
                 }}
-                className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition-colors"
+                className="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full transition-colors cursor-pointer"
               >
                 ✕
               </button>

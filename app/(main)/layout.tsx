@@ -9,13 +9,16 @@ export default function MainLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="min-h-screen">
+      {/* 1. Ubah pembungkus utama menjadi flex container */}
+      <div className="flex min-h-screen bg-slate-50">
         <Sidebar />
 
-        <div className="ml-64">
+        {/* 2. Hapus ml-64, ganti dengan flex-1 w-full agar meregang dinamis */}
+        <div className="flex-1 flex flex-col w-full min-w-0 transition-all duration-300">
           <Header />
 
-          <main className="p-6">
+          {/* Hapus p-6 dari sini jika DashboardPage sudah punya padding (px-4 py-8) sendiri agar tidak double */}
+          <main className="flex-1">
             {children}
           </main>
         </div>

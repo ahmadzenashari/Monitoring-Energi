@@ -65,8 +65,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside
-      className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-slate-200 bg-slate-50 transition-all duration-300 ease-in-out ${
+    <aside 
+      className={`sticky top-0 h-screen shrink-0 z-40 flex flex-col border-r border-slate-200 bg-slate-50 transition-all duration-300 ease-in-out ${
         isOpen ? "w-64" : "w-20"
       }`}
     >
